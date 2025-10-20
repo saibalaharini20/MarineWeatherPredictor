@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import requests
 import joblib
-import math
+import os
 
 # --- Page Setup ---
 st.set_page_config(page_title="🌊 Marine Weather Predictor", layout="wide")
@@ -19,39 +19,56 @@ with col2:
 
 api_key = st.text_input("🔑 Enter your StormGlass API Key", type="password")
 
+# --- Load Model Safely ---
+model_path = os.path.join(os.path.dirname(__file__), "marine_model.pkl")
+model = joblib.load(model_path)
+
+# --- Prediction Section ---
 if st.button("🌤 Predict Marine Condition"):
-    if not api_key:
-        st.warning("Please enter a valid StormGlass API key!")
-    else:
+
+    df = None
+    # Try fetching real-time data if API key provided
+    if api_key:
         url = f"https://api.stormglass.io/v2/weather/point?lat={lat}&lng={lng}&params=waveHeight,windSpeed,swellHeight,swellPeriod"
-        headers = {'Authorization': api_key}
-        response = requests.get(url, headers=headers).json()
+        response_raw = requests.get(url, headers={"Authorization": api_key})
 
-        try:
-            df = pd.json_normalize(response['hours'])
-            df['time'] = pd.to_datetime(df['time'])
-            df = df[['time', 'waveHeight.sg', 'windSpeed.sg', 'swellHeight.sg', 'swellPeriod.sg']]
-            df.columns = ['Time', 'Wave Height (m)', 'Wind Speed (m/s)', 'Swell Height (m)', 'Swell Period (s)']
+        if response_raw.status_code != 200:
+            st.warning(f"⚠️ Could not fetch data: {response_raw.status_code} - {response_raw.text}")
+        else:
+            try:
+                response = response_raw.json()
+                df = pd.json_normalize(response['hours'])
+                df['time'] = pd.to_datetime(df['time'])
+                df = df[['time', 'waveHeight.sg', 'windSpeed.sg', 'swellHeight.sg', 'swellPeriod.sg']]
+                df.columns = ['Time', 'Wave Height (m)', 'Wind Speed (m/s)', 'Swell Height (m)', 'Swell Period (s)']
 
-            # Derived features
-            df['wind_x'] = df['Wind Speed (m/s)'] * np.cos(np.radians(45))
-            df['wind_y'] = df['Wind Speed (m/s)'] * np.sin(np.radians(45))
-            df['wave_energy'] = 0.5 * 1025 * 9.81 * (df['Wave Height (m)'] ** 2)
+            except Exception as e:
+                st.warning(f"⚠️ Error processing API data: {e}")
 
-            # Load model
-            model = joblib.load("marine_model.pkl")
+    # Use sample data if API fails or no key
+    if df is None:
+        st.info("Using sample data for prediction.")
+        df = pd.DataFrame([{
+            'Time': pd.Timestamp.now(),
+            'Wave Height (m)': 1.2,
+            'Wind Speed (m/s)': 6.5,
+            'Swell Height (m)': 0.8,
+            'Swell Period (s)': 10
+        }])
 
-            # Take latest hour data
-            X_latest = df[['Wave Height (m)', 'Wind Speed (m/s)', 'Swell Height (m)', 
-                           'Swell Period (s)', 'wind_x', 'wind_y', 'wave_energy']].iloc[-1:]
-            prediction = model.predict(X_latest)
+    # --- Derived Features ---
+    df['wind_x'] = df['Wind Speed (m/s)'] * np.cos(np.radians(45))
+    df['wind_y'] = df['Wind Speed (m/s)'] * np.sin(np.radians(45))
+    df['wave_energy'] = 0.5 * 1025 * 9.81 * (df['Wave Height (m)'] ** 2)
 
-            st.success(f"🌊 **Predicted Marine Condition:** {prediction[0]}")
-            st.caption("Condition derived using real-time wave, wind, and swell parameters.")
+    # --- Prediction ---
+    X_latest = df[['Wave Height (m)', 'Wind Speed (m/s)', 'Swell Height (m)', 
+                   'Swell Period (s)', 'wind_x', 'wind_y', 'wave_energy']].iloc[-1:]
+    prediction = model.predict(X_latest)
 
-            # Display chart
-            st.line_chart(df.set_index('Time')[['Wave Height (m)', 'Wind Speed (m/s)']])
-            st.dataframe(df.tail(5))
+    st.success(f"🌊 **Predicted Marine Condition:** {prediction[0]}")
+    st.caption("Condition derived using wave, wind, and swell parameters.")
 
-        except Exception as e:
-            st.error(f"⚠️ Could not fetch data: {e}")
+    # --- Display Chart & Table ---
+    st.line_chart(df.set_index('Time')[['Wave Height (m)', 'Wind Speed (m/s)']])
+    st.dataframe(df.tail(5))
