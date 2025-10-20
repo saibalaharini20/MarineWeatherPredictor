@@ -9,8 +9,8 @@ Built using **Python, Streamlit, Random Forest Classifier**, and the **StormGlas
 ## 🚀 Live Demo
 
 🔗 [Click here to open the deployed app](https://marineweatherpredictor-qkzx7fyw8baw7hqyize2ld.streamlit.app/)  
-
-
+Create a free StormGlass account
+Use the API key in your demo
 ---
 
 ## 🧠 Features
