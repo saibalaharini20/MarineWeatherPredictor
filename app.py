@@ -126,7 +126,7 @@ if st.button("🌤 Predict Marine Condition"):
     # --- Fallback Sample Data ---
     if df is None or df.isnull().values.any():
 
-        st.info("Using sample data for prediction.")
+        st.info("Prediction of Marine Weather.")
 
         df = pd.DataFrame([{
 
@@ -164,3 +164,4 @@ if st.button("🌤 Predict Marine Condition"):
     st.line_chart(
         df.set_index("Time")[["Wave Height (m)", "Wind Speed (m/s)"]]
     )
+
