@@ -4,7 +4,8 @@ import numpy as np
 import requests
 import joblib
 import os
-
+import folium
+from streamlit_folium import st_folium
 # --- Page Setup ---
 st.set_page_config(page_title="🌊 Marine Weather Predictor", layout="wide")
 st.title("🌊 Marine Weather Predictor Dashboard")
@@ -71,4 +72,5 @@ if st.button("🌤 Predict Marine Condition"):
 
     # --- Display Chart & Table ---
     st.line_chart(df.set_index('Time')[['Wave Height (m)', 'Wind Speed (m/s)']])
-    st.dataframe(df.tail(5))
+    #st.dataframe(df.tail(5))
+
