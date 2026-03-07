@@ -47,6 +47,7 @@ elif input_method == "Select from Map":
         lng = map_data["last_clicked"]["lng"]
 
         st.success(f"Selected Location: {lat:.4f}, {lng:.4f}")
+        api_key = st.text_input("🔑 Enter your StormGlass API Key", type="password")
 # --- Load Model Safely ---
 model_path = os.path.join(os.path.dirname(__file__), "marine_model.pkl")
 model = joblib.load(model_path)
@@ -100,5 +101,6 @@ if st.button("🌤 Predict Marine Condition"):
     # --- Display Chart & Table ---
     st.line_chart(df.set_index('Time')[['Wave Height (m)', 'Wind Speed (m/s)']])
     #st.dataframe(df.tail(5))
+
 
 
