@@ -12,14 +12,41 @@ st.title("🌊 Marine Weather Predictor Dashboard")
 st.markdown("Enter the latitude and longitude of any coastal region to view the marine weather condition.")
 
 # --- Input Section ---
-col1, col2 = st.columns(2)
-with col1:
-    lat = st.number_input("🌍 Latitude", value=37.7749)
-with col2:
-    lng = st.number_input("📍 Longitude", value=-122.4194)
+# col1, col2 = st.columns(2)
+# with col1:
+#     lat = st.number_input("🌍 Latitude", value=37.7749)
+# with col2:
+#     lng = st.number_input("📍 Longitude", value=-122.4194)
 
-api_key = st.text_input("🔑 Enter your StormGlass API Key", type="password")
+# api_key = st.text_input("🔑 Enter your StormGlass API Key", type="password")
+st.subheader("📍 Choose Location Input Method")
 
+input_method = st.radio(
+    "Select how you want to provide the location:",
+    ("Manual Input", "Select from Map")
+)
+
+if input_method == "Manual Input":
+
+    col1, col2 = st.columns(2)
+    with col1:
+        lat = st.number_input("🌍 Latitude", value=37.7749)
+    with col2:
+        lng = st.number_input("📍 Longitude", value=-122.4194)
+
+elif input_method == "Select from Map":
+
+    st.write("Click anywhere on the map to select a location.")
+
+    m = folium.Map(location=[20, 0], zoom_start=2)
+
+    map_data = st_folium(m, height=400, width=700)
+
+    if map_data["last_clicked"] is not None:
+        lat = map_data["last_clicked"]["lat"]
+        lng = map_data["last_clicked"]["lng"]
+
+        st.success(f"Selected Location: {lat:.4f}, {lng:.4f}")
 # --- Load Model Safely ---
 model_path = os.path.join(os.path.dirname(__file__), "marine_model.pkl")
 model = joblib.load(model_path)
@@ -73,4 +100,5 @@ if st.button("🌤 Predict Marine Condition"):
     # --- Display Chart & Table ---
     st.line_chart(df.set_index('Time')[['Wave Height (m)', 'Wind Speed (m/s)']])
     #st.dataframe(df.tail(5))
+
 
