@@ -1,6 +1,8 @@
+streamlit
 pandas
 numpy
-requests
 scikit-learn
-streamlit
 joblib
+requests
+matplotlib
+altair==4.2.2
