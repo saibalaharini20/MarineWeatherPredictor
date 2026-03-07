@@ -66,10 +66,16 @@ if st.button("🌤 Predict Marine Condition"):
         else:
             try:
                 response = response_raw.json()
-                df = pd.json_normalize(response['hours'])
-                df['time'] = pd.to_datetime(df['time'])
-                df = df[['time', 'waveHeight.sg', 'windSpeed.sg', 'swellHeight.sg', 'swellPeriod.sg']]
-                df.columns = ['Time', 'Wave Height (m)', 'Wind Speed (m/s)', 'Swell Height (m)', 'Swell Period (s)']
+               df = pd.json_normalize(response['hours'])
+
+df['Time'] = pd.to_datetime(df['time'])
+
+df['Wave Height (m)'] = df['waveHeight'].apply(lambda x: list(x.values())[0] if isinstance(x, dict) else None)
+df['Wind Speed (m/s)'] = df['windSpeed'].apply(lambda x: list(x.values())[0] if isinstance(x, dict) else None)
+df['Swell Height (m)'] = df['swellHeight'].apply(lambda x: list(x.values())[0] if isinstance(x, dict) else None)
+df['Swell Period (s)'] = df['swellPeriod'].apply(lambda x: list(x.values())[0] if isinstance(x, dict) else None)
+
+df = df[['Time','Wave Height (m)','Wind Speed (m/s)','Swell Height (m)','Swell Period (s)']]
 
             except Exception as e:
                 st.warning(f"⚠️ Error processing API data: {e}")
@@ -101,6 +107,7 @@ if st.button("🌤 Predict Marine Condition"):
     # --- Display Chart & Table ---
     st.line_chart(df.set_index('Time')[['Wave Height (m)', 'Wind Speed (m/s)']])
     #st.dataframe(df.tail(5))
+
 
 
 
