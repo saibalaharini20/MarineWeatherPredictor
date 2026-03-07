@@ -9,8 +9,9 @@ from streamlit_folium import st_folium
 
 # --- Page Setup ---
 st.set_page_config(page_title="🌊 Marine Weather Predictor", layout="wide")
+
 st.title("🌊 Marine Weather Predictor Dashboard")
-st.markdown("Select a coastal location to predict the marine weather condition.")
+st.markdown("Select a coastal location to predict marine weather conditions.")
 
 # Default coordinates
 lat = 37.7749
@@ -24,7 +25,6 @@ input_method = st.radio(
     ("Manual Input", "Select from Map")
 )
 
-# Manual coordinates
 if input_method == "Manual Input":
 
     col1, col2 = st.columns(2)
@@ -35,8 +35,7 @@ if input_method == "Manual Input":
     with col2:
         lng = st.number_input("📍 Longitude", value=lng)
 
-# Map selection
-elif input_method == "Select from Map":
+else:
 
     st.write("Click anywhere on the map to select a location.")
 
@@ -44,7 +43,8 @@ elif input_method == "Select from Map":
 
     map_data = st_folium(m, height=400, width=700)
 
-    if map_data and map_data["last_clicked"] is not None:
+    if map_data and map_data["last_clicked"]:
+
         lat = map_data["last_clicked"]["lat"]
         lng = map_data["last_clicked"]["lng"]
 
@@ -53,7 +53,7 @@ elif input_method == "Select from Map":
 # --- API Key ---
 api_key = st.text_input("🔑 Enter your StormGlass API Key", type="password")
 
-# --- Load Model ---
+# --- Load ML Model ---
 model_path = os.path.join(os.path.dirname(__file__), "marine_model.pkl")
 
 @st.cache_resource
@@ -62,12 +62,12 @@ def load_model():
 
 model = load_model()
 
-# --- Prediction ---
+# --- Prediction Button ---
 if st.button("🌤 Predict Marine Condition"):
 
     df = None
 
-    # Try fetching real-time data
+    # Try fetching API data
     if api_key:
 
         url = f"https://api.stormglass.io/v2/weather/point?lat={lat}&lng={lng}&params=waveHeight,windSpeed,swellHeight,swellPeriod"
@@ -75,63 +75,92 @@ if st.button("🌤 Predict Marine Condition"):
         response_raw = requests.get(url, headers={"Authorization": api_key})
 
         if response_raw.status_code != 200:
-            st.warning(f"⚠️ Could not fetch data: {response_raw.status_code}")
+
+            st.warning("⚠️ Could not fetch marine data from API.")
 
         else:
+
             try:
+
                 response = response_raw.json()
 
-                df = pd.json_normalize(response['hours'])
+                if "hours" not in response:
 
-                df['Time'] = pd.to_datetime(df['time'])
+                    st.warning("⚠️ API returned no marine data.")
 
-                df['Wave Height (m)'] = df['waveHeight'].apply(
-                    lambda x: list(x.values())[0] if isinstance(x, dict) else None
-                )
+                else:
 
-                df['Wind Speed (m/s)'] = df['windSpeed'].apply(
-                    lambda x: list(x.values())[0] if isinstance(x, dict) else None
-                )
+                    df = pd.json_normalize(response["hours"])
 
-                df['Swell Height (m)'] = df['swellHeight'].apply(
-                    lambda x: list(x.values())[0] if isinstance(x, dict) else None
-                )
+                    df["Time"] = pd.to_datetime(df["time"])
 
-                df['Swell Period (s)'] = df['swellPeriod'].apply(
-                    lambda x: list(x.values())[0] if isinstance(x, dict) else None
-                )
+                    # Safe extraction function
+                    def extract_value(col):
 
-                df = df[['Time','Wave Height (m)','Wind Speed (m/s)','Swell Height (m)','Swell Period (s)']]
+                        if col in df.columns:
+
+                            return df[col].apply(
+                                lambda x: list(x.values())[0] if isinstance(x, dict) else None
+                            )
+
+                        return None
+
+                    df["Wave Height (m)"] = extract_value("waveHeight")
+                    df["Wind Speed (m/s)"] = extract_value("windSpeed")
+                    df["Swell Height (m)"] = extract_value("swellHeight")
+                    df["Swell Period (s)"] = extract_value("swellPeriod")
+
+                    df = df[[
+                        "Time",
+                        "Wave Height (m)",
+                        "Wind Speed (m/s)",
+                        "Swell Height (m)",
+                        "Swell Period (s)"
+                    ]]
 
             except Exception as e:
-                st.warning(f"⚠️ Error processing API data: {e}")
 
-    # Use sample data if API fails
-    if df is None:
+                st.warning(f"⚠️ Error processing API data: {e}")
+                df = None
+
+    # --- Fallback Sample Data ---
+    if df is None or df.isnull().values.any():
 
         st.info("Using sample data for prediction.")
 
         df = pd.DataFrame([{
-            'Time': pd.Timestamp.now(),
-            'Wave Height (m)': 1.2,
-            'Wind Speed (m/s)': 6.5,
-            'Swell Height (m)': 0.8,
-            'Swell Period (s)': 10
+
+            "Time": pd.Timestamp.now(),
+            "Wave Height (m)": 1.2,
+            "Wind Speed (m/s)": 6.5,
+            "Swell Height (m)": 0.8,
+            "Swell Period (s)": 10
+
         }])
 
     # --- Feature Engineering ---
-    df['wind_x'] = df['Wind Speed (m/s)'] * np.cos(np.radians(45))
-    df['wind_y'] = df['Wind Speed (m/s)'] * np.sin(np.radians(45))
-    df['wave_energy'] = 0.5 * 1025 * 9.81 * (df['Wave Height (m)'] ** 2)
+    df["wind_x"] = df["Wind Speed (m/s)"] * np.cos(np.radians(45))
+    df["wind_y"] = df["Wind Speed (m/s)"] * np.sin(np.radians(45))
+    df["wave_energy"] = 0.5 * 1025 * 9.81 * (df["Wave Height (m)"] ** 2)
 
     # --- Prediction ---
-    X_latest = df[['Wave Height (m)', 'Wind Speed (m/s)', 'Swell Height (m)',
-                   'Swell Period (s)', 'wind_x', 'wind_y', 'wave_energy']].iloc[-1:]
+    X_latest = df[[
+        "Wave Height (m)",
+        "Wind Speed (m/s)",
+        "Swell Height (m)",
+        "Swell Period (s)",
+        "wind_x",
+        "wind_y",
+        "wave_energy"
+    ]].iloc[-1:]
 
     prediction = model.predict(X_latest)
 
-    st.success(f"🌊 **Predicted Marine Condition:** {prediction[0]}")
-    st.caption("Condition derived using wave, wind, and swell parameters.")
+    st.success(f"🌊 Predicted Marine Condition: **{prediction[0]}**")
 
-    # --- Chart ---
-    st.line_chart(df.set_index('Time')[['Wave Height (m)', 'Wind Speed (m/s)']])
+    st.caption("Prediction based on wave, wind and swell parameters.")
+
+    # --- Visualization ---
+    st.line_chart(
+        df.set_index("Time")[["Wave Height (m)", "Wind Speed (m/s)"]]
+    )
